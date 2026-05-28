@@ -4,6 +4,10 @@ import { z } from 'zod';
 import postgres from 'postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { signIn } from '@/auth';
+import { AuthError } from 'next-auth';
+import bcrypt from 'bcrypt';
+import type { User } from '@/app/lib/definitions';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
@@ -51,7 +55,7 @@ export async function createInvoice(prevState: State, formData: FormData) {
   }
 
   const { customerId, amount, status } = validatedFields.data;
-  const amountInCents = amount * 100;
+  const amountInCents = Math.round(amount * 100);
   const date = new Date().toISOString().split('T')[0];
 
   try {
@@ -89,7 +93,7 @@ export async function updateInvoice(
   }
 
   const { customerId, amount, status } = validatedFields.data;
-  const amountInCents = amount * 100;
+  const amountInCents = Math.round(amount * 100);
 
   try {
     await sql`
@@ -116,5 +120,47 @@ export async function deleteInvoice(id: string) {
     return { message: null };
   } catch (error) {
     return { message: 'Database Error: Failed to Delete Invoice.' };
+  }
+}
+
+export async function authenticate(
+  prevState: string | undefined,
+  formData: FormData,
+) {
+  const parsedCredentials = z
+    .object({ email: z.string().email(), password: z.string().min(6) })
+    .safeParse({
+      email: formData.get('email'),
+      password: formData.get('password'),
+    });
+
+  if (!parsedCredentials.success) {
+    return 'Invalid credentials.';
+  }
+
+  const [user] = await sql<User[]>`
+    SELECT * FROM users WHERE email=${parsedCredentials.data.email}
+  `;
+
+  const passwordsMatch = user
+    ? await bcrypt.compare(parsedCredentials.data.password, user.password)
+    : false;
+
+  if (!passwordsMatch) {
+    return 'Invalid credentials.';
+  }
+
+  try {
+    await signIn('credentials', formData);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case 'CredentialsSignin':
+          return 'Invalid credentials.';
+        default:
+          return 'Something went wrong.';
+      }
+    }
+    throw error;
   }
 }
