@@ -12,12 +12,19 @@ export default async function InvoicesTable({
   currentPage: number;
 }) {
   const invoices = await fetchFilteredInvoices(query, currentPage);
+  const hasInvoices = invoices.length > 0;
 
   return (
     <div className="mt-6 flow-root">
       <div className="inline-block min-w-full align-middle">
         <div className="rounded-lg bg-gray-50 p-2 md:pt-0">
-          <div className="md:hidden">
+          {!hasInvoices ? (
+            <div className="rounded-md bg-white px-6 py-10 text-center text-sm text-gray-500">
+              No invoices found.
+            </div>
+          ) : null}
+          {hasInvoices ? (
+            <div className="md:hidden">
             {invoices?.map((invoice) => (
               <div
                 key={invoice.id}
@@ -53,8 +60,10 @@ export default async function InvoicesTable({
                 </div>
               </div>
             ))}
-          </div>
-          <table className="hidden min-w-full text-gray-900 md:table">
+            </div>
+          ) : null}
+          {hasInvoices ? (
+            <table className="hidden min-w-full text-gray-900 md:table">
             <thead className="rounded-lg text-left text-sm font-normal">
               <tr>
                 <th scope="col" className="px-4 py-5 font-medium sm:pl-6">
@@ -116,7 +125,8 @@ export default async function InvoicesTable({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          ) : null}
         </div>
       </div>
     </div>

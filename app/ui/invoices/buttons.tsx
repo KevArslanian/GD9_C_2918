@@ -4,7 +4,7 @@ import { PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { deleteInvoice } from '@/app/lib/actions';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 export function CreateInvoice() {
   return (
@@ -24,6 +24,7 @@ export function UpdateInvoice({ id }: { id: string }) {
       href={`/dashboard/invoices/${id}/edit`}
       className="rounded-md border p-2 hover:bg-gray-100"
     >
+      <span className="sr-only">Edit</span>
       <PencilIcon className="w-5" />
     </Link>
   );
@@ -32,21 +33,35 @@ export function UpdateInvoice({ id }: { id: string }) {
 export function DeleteInvoice({ id }: { id: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <button
-      type="button"
-      disabled={isPending}
-      className="rounded-md border p-2 hover:bg-gray-100"
-      onClick={() => {
-        startTransition(async () => {
-          await deleteInvoice(id);
-          router.refresh();
-        });
-      }}
-    >
-      <span className="sr-only">Delete</span>
-      <TrashIcon className="w-4" />
-    </button>
+    <>
+      <button
+        type="button"
+        disabled={isPending}
+        aria-disabled={isPending}
+        className="rounded-md border p-2 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const result = await deleteInvoice(id);
+            if (result.message) {
+              setError(result.message);
+              return;
+            }
+            router.refresh();
+          });
+        }}
+      >
+        <span className="sr-only">Delete</span>
+        <TrashIcon className="w-4" />
+      </button>
+      {error && (
+        <span className="sr-only" aria-live="polite">
+          {error}
+        </span>
+      )}
+    </>
   );
 }

@@ -88,6 +88,7 @@ export async function fetchFilteredInvoices(
   currentPage: number,
 ) {
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+  const normalizedQuery = query.replace(/[$,]/g, '');
 
   try {
     const invoices = await sql<InvoicesTable[]>`
@@ -105,6 +106,7 @@ export async function fetchFilteredInvoices(
         customers.name ILIKE ${`%${query}%`} OR
         customers.email ILIKE ${`%${query}%`} OR
         invoices.amount::text ILIKE ${`%${query}%`} OR
+        TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM (invoices.amount / 100.0)::text)) ILIKE ${`%${normalizedQuery}%`} OR
         invoices.date::text ILIKE ${`%${query}%`} OR
         invoices.status ILIKE ${`%${query}%`}
       ORDER BY invoices.date DESC
@@ -119,6 +121,8 @@ export async function fetchFilteredInvoices(
 }
 
 export async function fetchInvoicesPages(query: string) {
+  const normalizedQuery = query.replace(/[$,]/g, '');
+
   try {
     const data = await sql`SELECT COUNT(*)
     FROM invoices
@@ -127,6 +131,7 @@ export async function fetchInvoicesPages(query: string) {
       customers.name ILIKE ${`%${query}%`} OR
       customers.email ILIKE ${`%${query}%`} OR
       invoices.amount::text ILIKE ${`%${query}%`} OR
+      TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM (invoices.amount / 100.0)::text)) ILIKE ${`%${normalizedQuery}%`} OR
       invoices.date::text ILIKE ${`%${query}%`} OR
       invoices.status ILIKE ${`%${query}%`}
   `;
