@@ -4,14 +4,21 @@ import { z } from 'zod';
 import postgres from 'postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { signIn, signOut } from '@/auth';
+import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+import bcrypt from 'bcryptjs';
+import type { User } from '@/app/lib/definitions';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
 const FormSchema = z.object({
   id: z.string(),
-  customerId: z.string().min(1, { message: 'Please select a customer.' }),
+  customerId: z
+    .string({
+      invalid_type_error: 'Please select a customer.',
+      required_error: 'Please select a customer.',
+    })
+    .min(1, { message: 'Please select a customer.' }),
   amount: z.coerce
     .number()
     .gt(0, { message: 'Please enter an amount greater than $0.' }),
@@ -48,7 +55,7 @@ export async function createInvoice(prevState: State, formData: FormData) {
   }
 
   const { customerId, amount, status } = validatedFields.data;
-  const amountInCents = amount * 100;
+  const amountInCents = Math.round(amount * 100);
   const date = new Date().toISOString().split('T')[0];
 
   try {
@@ -86,7 +93,7 @@ export async function updateInvoice(
   }
 
   const { customerId, amount, status } = validatedFields.data;
-  const amountInCents = amount * 100;
+  const amountInCents = Math.round(amount * 100);
 
   try {
     await sql`
@@ -95,7 +102,9 @@ export async function updateInvoice(
       WHERE id = ${id}
     `;
   } catch (error) {
-    return { message: 'Database Error: Failed to Update Invoice.' };
+    return {
+      message: 'Database Error: Failed to Update Invoice.',
+    };
   }
 
   revalidatePath('/dashboard');
@@ -104,15 +113,43 @@ export async function updateInvoice(
 }
 
 export async function deleteInvoice(id: string) {
-  await sql`DELETE FROM invoices WHERE id = ${id}`;
-  revalidatePath('/dashboard');
-  revalidatePath('/dashboard/invoices');
+  try {
+    await sql`DELETE FROM invoices WHERE id = ${id}`;
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/invoices');
+    return { message: null };
+  } catch (error) {
+    return { message: 'Database Error: Failed to Delete Invoice.' };
+  }
 }
 
 export async function authenticate(
   prevState: string | undefined,
   formData: FormData,
 ) {
+  const parsedCredentials = z
+    .object({ email: z.string().email(), password: z.string().min(6) })
+    .safeParse({
+      email: formData.get('email'),
+      password: formData.get('password'),
+    });
+
+  if (!parsedCredentials.success) {
+    return 'Invalid credentials.';
+  }
+
+  const [user] = await sql<User[]>`
+    SELECT * FROM users WHERE email=${parsedCredentials.data.email}
+  `;
+
+  const passwordsMatch = user
+    ? await bcrypt.compare(parsedCredentials.data.password, user.password)
+    : false;
+
+  if (!passwordsMatch) {
+    return 'Invalid credentials.';
+  }
+
   try {
     await signIn('credentials', formData);
   } catch (error) {
@@ -126,8 +163,4 @@ export async function authenticate(
     }
     throw error;
   }
-}
-
-export async function signOutAction() {
-  await signOut();
 }
