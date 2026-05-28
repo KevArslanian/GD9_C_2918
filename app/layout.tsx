@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     template: '%s | Acme Dashboard',
     default: 'Acme Dashboard',
   },
-  description: 'The official Acme dashboard built with Next.js.',
+  description: 'The official Next.js Learn Dashboard built with App Router.',
   metadataBase: new URL('https://gd9c2918.vercel.app'),
 };
 
